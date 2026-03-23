@@ -18,7 +18,13 @@ The educative goal is to motivate the students to apply the theoretical optimiza
    git clone https://github.com/adcastel/miniOIA4DL.git
    cd miniOIA4DL
    ```
-2. Build the Cython modules (if any):
+
+2. Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3. Build the Cython modules (if any):
    ```bash
    cd cython_modules
    python setup.py build_ext --inplace
@@ -38,7 +44,7 @@ The arguments for launching are:
 
 To evaluate a model performance:
 ```bash
-python main.py --model <model_name> --batch_size <batch_size> 
+python main.py --model <model_name> --batch_size <batch_size>
 ```
 ## Current Models
 
