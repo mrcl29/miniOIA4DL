@@ -1,19 +1,14 @@
-import math
 from modules.layer import Layer
 
 import numpy as np
 
 class Softmax(Layer):
     def forward(self, input, training=True):  # input: [batch_size x num_classes]
-        input = np.array(input).astype(dtype=np.float32)  # Ensure input is float for numerical stability
-        self.output = np.zeros_like(input,np.float32)
-
-        for i, row in enumerate(input):
-            max_val = np.max(row)
-            exps = np.exp(row - max_val)
-            self.output[i] = exps / np.sum(exps)
-
-        return self.output
+        input = np.asarray(input, dtype=np.float32)
+        shifted = input - np.max(input, axis=1, keepdims=True)
+        exps = np.exp(shifted)
+        self.output = exps / np.sum(exps, axis=1, keepdims=True)
+        return self.output.astype(np.float32, copy=False)
 
     def backward(self, grad_output, learning_rate=None):
         # Assuming softmax used with cross-entropy loss, so gradient is simplified
