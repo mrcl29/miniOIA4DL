@@ -34,30 +34,21 @@ class Dense(Layer):
         return output
 
     def backward(self, grad_output, learning_rate):
-        grad_output = np.array(grad_output).astype(np.float32)  # Ensure grad_output is float for numerical stability
-        batch_size = grad_output.shape[0]
+        grad_output = np.asarray(grad_output, dtype=np.float32)
 
-        # Gradient w.r.t. weights
-        grad_weights = np.zeros((self.in_features, self.out_features),dtype=np.float32)
-        for i in range(self.in_features):
-            for j in range(self.out_features):
-                for b in range(batch_size):
-                    grad_weights[i][j] += self.input[b][i] * grad_output[b][j]
-        # Gradient w.r.t. biases
-        grad_biases = np.sum(grad_output, axis=0)
+        # Gradient w.r.t. weights: dL/dW = X^T * dL/dY
+        grad_weights = self.input.T @ grad_output
+        # Gradient w.r.t. biases: dL/db = sum_b dL/dY
+        grad_biases = np.sum(grad_output, axis=0, dtype=np.float32)
 
-        # Gradient w.r.t. input
-        grad_input = np.zeros((batch_size, self.in_features),dtype=np.float32)
-        for b in range(batch_size):
-            for i in range(self.in_features):
-                for j in range(self.out_features):
-                    grad_input[b][i] += grad_output[b][j] * self.weights[i][j]
+        # Gradient w.r.t. input: dL/dX = dL/dY * W^T
+        grad_input = grad_output @ self.weights.T
         
         # Update weights and biases
         self.weights -= learning_rate * grad_weights
         self.biases -= learning_rate * grad_biases
 
-        return grad_input
+        return grad_input.astype(np.float32, copy=False)
     
     def get_weights(self):
         return {'weights': self.weights, 'biases': self.biases}
