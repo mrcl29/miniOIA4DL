@@ -1,1 +1,7 @@
 venv/
+*/*.pyx
+*/*.c
+*/*.tar.gz
+build/
+__pycache__/
+.pytest_cache/
