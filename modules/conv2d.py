@@ -4,6 +4,15 @@ from modules.utils import *
 
 import numpy as np
 
+
+def _sliding_window_view_2d(input_tensor, kernel_size, stride):
+    windows = np.lib.stride_tricks.sliding_window_view(
+        input_tensor,
+        (kernel_size, kernel_size),
+        axis=(2, 3)
+    )
+    return windows[:, :, ::stride, ::stride, :, :]
+
 class Conv2D(Layer):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, conv_algo=0, weight_init="he"):
         self.in_channels = in_channels
@@ -14,10 +23,12 @@ class Conv2D(Layer):
         
         # MODIFICAR: Añadir nuevo if-else para otros algoritmos de convolución
         if conv_algo == 0:
-            self.mode = 'direct' 
+            self.mode = 'direct'
+        elif conv_algo == 1:
+            self.mode = 'im2col'
         else:
             print(f"Algoritmo {conv_algo} no soportado aún")
-            self.mode = 'direct' 
+            self.mode = 'direct'
 
         fan_in = in_channels * kernel_size * kernel_size
         fan_out = out_channels * kernel_size * kernel_size
@@ -60,12 +71,14 @@ class Conv2D(Layer):
         # PISTA: Usar estos if-else si implementas más algoritmos de convolución
         if self.mode == 'direct':
             return self._forward_direct(input)
+        if self.mode == 'im2col':
+            return self._forward_im2col(input)
         else:
-            raise ValueError("Mode must be 'direct")
+            raise ValueError("Mode must be 'direct' or 'im2col'")
 
     def backward(self, grad_output, learning_rate):
         # ESTO NO ES NECESARIO YA QUE NO VAIS A HACER BACKPROPAGATION
-        if self.mode == 'direct':
+        if self.mode in ('direct', 'im2col'):
             return self._backward_direct(grad_output, learning_rate)
         else:
             raise ValueError("Mode must be 'direct' or 'im2col'")
@@ -81,10 +94,11 @@ class Conv2D(Layer):
                            ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)),
                            mode='constant').astype(np.float32)
 
+        # calculo de dimensiones de salida (aplicar forumula)
         out_h = (input.shape[2] - k_h) // self.stride + 1
         out_w = (input.shape[3] - k_w) // self.stride + 1
         output = np.zeros((batch_size, self.out_channels, out_h, out_w), dtype=np.float32)
-
+        
         for b in range(batch_size):
             for out_c in range(self.out_channels):
                 for in_c in range(self.in_channels):
@@ -97,6 +111,29 @@ class Conv2D(Layer):
                 output[b, out_c] += self.biases[out_c]
 
         return output
+
+    def _forward_im2col(self, input):
+        input = np.asarray(input, dtype=np.float32)
+        batch_size = input.shape[0]
+
+        if self.padding > 0:
+            input = np.pad(
+                input,
+                ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)),
+                mode='constant'
+            )
+
+        out_h = (input.shape[2] - self.kernel_size) // self.stride + 1
+        out_w = (input.shape[3] - self.kernel_size) // self.stride + 1
+
+        windows = _sliding_window_view_2d(input, self.kernel_size, self.stride)
+        cols = windows.transpose(0, 2, 3, 1, 4, 5).reshape(batch_size, out_h * out_w, -1)
+        kernels = self.kernels.reshape(self.out_channels, -1)
+
+        output = cols @ kernels.T
+        output += self.biases.reshape(1, 1, self.out_channels)
+
+        return output.transpose(0, 2, 1).reshape(batch_size, self.out_channels, out_h, out_w)
 
     def _backward_direct(self, grad_output, learning_rate):
         batch_size, _, out_h, out_w = grad_output.shape

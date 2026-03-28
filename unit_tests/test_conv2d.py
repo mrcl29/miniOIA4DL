@@ -12,18 +12,8 @@ def test_conv2d():
     stride = 2
     padding = 1
     batch_size = 2
-    conv_algo = 0  # Assuming conv_algo is not used in this test
-
-    # Initialize layer
-    conv = Conv2D(in_channels=in_channels, out_channels=out_channels,
-                  kernel_size=kernel_size, stride=stride, padding=padding,conv_algo=conv_algo)
-    
     # Input: 1 image, 1 channel, 5x5 values from 0 to 24
     input_image = np.arange(img_height*img_height*in_channels*batch_size, dtype=np.float32).reshape(batch_size, in_channels, img_width, img_height)
-
-    # Set all kernels to 1 and biases to 0
-    conv.kernels = np.ones((out_channels, in_channels, kernel_size, kernel_size), dtype=np.float32)
-    conv.biases = np.zeros(out_channels, dtype=np.float32)
 
     # Pad the input manually for expected output
     padded = np.pad(input_image, ((0, 0), (0, 0), (padding, padding), (padding, padding)), mode='constant')
@@ -42,12 +32,17 @@ def test_conv2d():
                     patch = padded[b, 0, h_start:h_start+kernel_size, w_start:w_start+kernel_size]
                     expected_output[b, c, i, j] = np.sum(patch)  # kernel is all ones
 
-    # Run the actual forward pass
-    output = conv.forward(input_image)
+    for conv_algo in (0, 1):
+        conv = Conv2D(in_channels=in_channels, out_channels=out_channels,
+                      kernel_size=kernel_size, stride=stride, padding=padding, conv_algo=conv_algo)
+        conv.kernels = np.ones((out_channels, in_channels, kernel_size, kernel_size), dtype=np.float32)
+        conv.biases = np.zeros(out_channels, dtype=np.float32)
 
-    # Validate
-    assert np.allclose(output, expected_output), "Conv2D (padding+stride) forward mismatch!"
-    print("✅ Conv2D forward with padding and stride passed!")
+        output = conv.forward(input_image)
+
+        assert np.allclose(output, expected_output), f"Conv2D (padding+stride) forward mismatch for conv_algo={conv_algo}!"
+
+    print("✅ Conv2D forward with padding and stride passed for direct and im2col!")
 
 test_conv2d()
 
