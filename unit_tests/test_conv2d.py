@@ -32,7 +32,7 @@ def test_conv2d():
                     patch = padded[b, 0, h_start:h_start+kernel_size, w_start:w_start+kernel_size]
                     expected_output[b, c, i, j] = np.sum(patch)  # kernel is all ones
 
-    for conv_algo in (0, 1):
+    for conv_algo in (0, 1, 2):
         conv = Conv2D(in_channels=in_channels, out_channels=out_channels,
                       kernel_size=kernel_size, stride=stride, padding=padding, conv_algo=conv_algo)
         conv.kernels = np.ones((out_channels, in_channels, kernel_size, kernel_size), dtype=np.float32)
@@ -42,7 +42,7 @@ def test_conv2d():
 
         assert np.allclose(output, expected_output), f"Conv2D (padding+stride) forward mismatch for conv_algo={conv_algo}!"
 
-    print("✅ Conv2D forward with padding and stride passed for direct and im2col!")
+    print("✅ Conv2D forward with padding and stride passed for conv_algo=0/1/2!")
 
 test_conv2d()
 

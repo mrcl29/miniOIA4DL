@@ -1,8 +1,13 @@
 from modules.layer import Layer
 from modules.utils import *
-#from cython_modules.im2col import im2col_forward_cython
 
 import numpy as np
+
+try:
+    from cython_modules.im2col import im2col_forward_cython
+    _CYTHON_AVAILABLE = True
+except ImportError:
+    _CYTHON_AVAILABLE = False
 
 
 def _sliding_window_view_2d(input_tensor, kernel_size, stride):
@@ -13,6 +18,7 @@ def _sliding_window_view_2d(input_tensor, kernel_size, stride):
     )
     return windows[:, :, ::stride, ::stride, :, :]
 
+
 class Conv2D(Layer):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, conv_algo=0, weight_init="he"):
         self.in_channels = in_channels
@@ -20,12 +26,18 @@ class Conv2D(Layer):
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
-        
+
         # MODIFICAR: Añadir nuevo if-else para otros algoritmos de convolución
         if conv_algo == 0:
             self.mode = 'direct'
         elif conv_algo == 1:
             self.mode = 'im2col'
+        elif conv_algo == 2:
+            if _CYTHON_AVAILABLE:
+                self.mode = 'im2col_cython'
+            else:
+                print("Cython no disponible, usando im2col NumPy como fallback")
+                self.mode = 'im2col'
         else:
             print(f"Algoritmo {conv_algo} no soportado aún")
             self.mode = 'direct'
@@ -42,14 +54,16 @@ class Conv2D(Layer):
         elif weight_init == "custom":
             self.kernels = np.zeros((out_channels, in_channels, kernel_size, kernel_size), dtype=np.float32)
         else:
-            self.kernels = np.random.uniform(-0.1, 0.1, 
-                          (out_channels, in_channels, kernel_size, kernel_size)).astype(np.float32)
-        
+            self.kernels = np.random.uniform(
+                -0.1,
+                0.1,
+                (out_channels, in_channels, kernel_size, kernel_size)
+            ).astype(np.float32)
 
         self.biases = np.zeros(out_channels, dtype=np.float32)
 
         # PISTA: Y estos valores para qué las podemos utilizar?
-        # Si los usas, no olvides utilizar el modelo explicado en teoría que maximiza la caché
+        # Si los usas, no olvides utilizar el modelo explicado en teoría que maximiza la caché
         self.mc = 480
         self.nc = 3072
         self.kc = 384
@@ -58,14 +72,13 @@ class Conv2D(Layer):
         self.Ac = np.empty((self.mc, self.kc), dtype=np.float32)
         self.Bc = np.empty((self.kc, self.nc), dtype=np.float32)
 
-
     def get_weights(self):
         return {'kernels': self.kernels, 'biases': self.biases}
 
     def set_weights(self, weights):
         self.kernels = weights['kernels']
         self.biases = weights['biases']
-    
+
     def forward(self, input, training=True):
         self.input = input
         # PISTA: Usar estos if-else si implementas más algoritmos de convolución
@@ -73,44 +86,51 @@ class Conv2D(Layer):
             return self._forward_direct(input)
         if self.mode == 'im2col':
             return self._forward_im2col(input)
-        else:
-            raise ValueError("Mode must be 'direct' or 'im2col'")
+        if self.mode == 'im2col_cython':
+            return self._forward_im2col_cython(input)
+        raise ValueError("Mode must be 'direct', 'im2col' or 'im2col_cython'")
 
     def backward(self, grad_output, learning_rate):
         # ESTO NO ES NECESARIO YA QUE NO VAIS A HACER BACKPROPAGATION
-        if self.mode in ('direct', 'im2col'):
+        if self.mode in ('direct', 'im2col', 'im2col_cython'):
             return self._backward_direct(grad_output, learning_rate)
-        else:
-            raise ValueError("Mode must be 'direct' or 'im2col'")
+        raise ValueError("Mode must be 'direct', 'im2col' or 'im2col_cython'")
 
     # --- DIRECT IMPLEMENTATION ---
 
     def _forward_direct(self, input):
-        batch_size, _, in_h, in_w = input.shape
+        batch_size, _, _, _ = input.shape
         k_h, k_w = self.kernel_size, self.kernel_size
 
         if self.padding > 0:
-            input = np.pad(input,
-                           ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)),
-                           mode='constant').astype(np.float32)
+            input = np.pad(
+                input,
+                ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)),
+                mode='constant'
+            ).astype(np.float32)
 
-        # calculo de dimensiones de salida (aplicar forumula)
+        # calculo de dimensiones de salida (aplicar formula)
         out_h = (input.shape[2] - k_h) // self.stride + 1
         out_w = (input.shape[3] - k_w) // self.stride + 1
         output = np.zeros((batch_size, self.out_channels, out_h, out_w), dtype=np.float32)
-        
+
         for b in range(batch_size):
             for out_c in range(self.out_channels):
                 for in_c in range(self.in_channels):
                     for i in range(out_h):
                         for j in range(out_w):
-                            region = input[b, in_c,
-                                           i * self.stride:i * self.stride + k_h,
-                                           j * self.stride:j * self.stride + k_w]
+                            region = input[
+                                b,
+                                in_c,
+                                i * self.stride:i * self.stride + k_h,
+                                j * self.stride:j * self.stride + k_w,
+                            ]
                             output[b, out_c, i, j] += np.sum(region * self.kernels[out_c, in_c])
                 output[b, out_c] += self.biases[out_c]
 
         return output
+
+    # --- IM2COL NUMPY IMPLEMENTATION (conv_algo=1) ---
 
     def _forward_im2col(self, input):
         input = np.asarray(input, dtype=np.float32)
@@ -135,15 +155,45 @@ class Conv2D(Layer):
 
         return output.transpose(0, 2, 1).reshape(batch_size, self.out_channels, out_h, out_w)
 
+    # --- IM2COL CYTHON IMPLEMENTATION (conv_algo=2) ---
+
+    def _forward_im2col_cython(self, input):
+        input = np.ascontiguousarray(input, dtype=np.float32)
+        batch_size = input.shape[0]
+
+        if self.padding > 0:
+            input = np.ascontiguousarray(
+                np.pad(
+                    input,
+                    ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)),
+                    mode='constant'
+                ),
+                dtype=np.float32
+            )
+
+        out_h = (input.shape[2] - self.kernel_size) // self.stride + 1
+        out_w = (input.shape[3] - self.kernel_size) // self.stride + 1
+
+        cols = im2col_forward_cython(input, self.kernel_size, self.stride, out_h, out_w)
+        kernels = self.kernels.reshape(self.out_channels, -1)
+
+        output = cols @ kernels.T
+        output += self.biases.reshape(1, 1, self.out_channels)
+
+        return output.transpose(0, 2, 1).reshape(batch_size, self.out_channels, out_h, out_w)
+
+    # --- BACKWARD (shared by all modes) ---
+
     def _backward_direct(self, grad_output, learning_rate):
         batch_size, _, out_h, out_w = grad_output.shape
-        _, _, in_h, in_w = self.input.shape
         k_h, k_w = self.kernel_size, self.kernel_size
 
         if self.padding > 0:
-            input_padded = np.pad(self.input,
-                                  ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)),
-                                  mode='constant').astype(np.float32)
+            input_padded = np.pad(
+                self.input,
+                ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)),
+                mode='constant'
+            ).astype(np.float32)
         else:
             input_padded = self.input
 
@@ -160,7 +210,9 @@ class Conv2D(Layer):
                             c = j * self.stride
                             region = input_padded[b, in_c, r:r + k_h, c:c + k_w]
                             grad_kernels[out_c, in_c] += grad_output[b, out_c, i, j] * region
-                            grad_input_padded[b, in_c, r:r + k_h, c:c + k_w] += self.kernels[out_c, in_c] * grad_output[b, out_c, i, j]
+                            grad_input_padded[b, in_c, r:r + k_h, c:c + k_w] += (
+                                self.kernels[out_c, in_c] * grad_output[b, out_c, i, j]
+                            )
                 grad_biases[out_c] += np.sum(grad_output[b, out_c])
 
         if self.padding > 0:
