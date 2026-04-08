@@ -1,16 +1,24 @@
 from modules.layer import Layer
 #from cython_modules.maxpool2d import maxpool_forward_cython
 import numpy as np
-from numpy.lib.stride_tricks import sliding_window_view
+
+try:
+    import cupy as cp
+    _CUPY_AVAILABLE = True
+except ImportError:
+    cp = None
+    _CUPY_AVAILABLE = False
 
 class MaxPool2D(Layer):
-    def __init__(self, kernel_size, stride):
+    def __init__(self, kernel_size, stride, use_gpu=False):
         self.kernel_size = kernel_size
         self.stride = stride
+        self.use_gpu = bool(use_gpu and _CUPY_AVAILABLE)
 
     def forward(self, input, training=True):  # input: np.ndarray of shape [B, C, H, W]
-        self.input = np.asarray(input, dtype=np.float32)
-        B, C, H, W = self.input.shape
+        xp = cp if self.use_gpu else np
+        inp = xp.asarray(input, dtype=np.float32)
+        B, C, H, W = inp.shape
         KH, KW = self.kernel_size, self.kernel_size
         SH, SW = self.stride, self.stride
 
@@ -18,23 +26,30 @@ class MaxPool2D(Layer):
         out_w = (W - KW) // SW + 1
 
         # Extraer todas las ventanas de una vez: (B, C, out_h, out_w, KH, KW)
-        windows = sliding_window_view(self.input, (KH, KW), axis=(2, 3))[:, :, ::SH, ::SW]
+        windows = xp.lib.stride_tricks.sliding_window_view(inp, (KH, KW), axis=(2, 3))[:, :, ::SH, ::SW]
         flat = windows.reshape(B, C, out_h, out_w, KH * KW)
 
         # Índice plano del máximo en cada ventana
-        argmax = np.argmax(flat, axis=-1)          # (B, C, out_h, out_w)
+        argmax = flat.argmax(axis=-1)          # (B, C, out_h, out_w)
 
         # Convertir índice plano a coordenadas absolutas
         h_off = argmax // KW
         w_off = argmax % KW
-        h_base = (np.arange(out_h) * SH).reshape(1, 1, out_h, 1)
-        w_base = (np.arange(out_w) * SW).reshape(1, 1, 1, out_w)
+        h_base = (xp.arange(out_h) * SH).reshape(1, 1, out_h, 1)
+        w_base = (xp.arange(out_w) * SW).reshape(1, 1, 1, out_w)
 
-        self.max_indices = np.empty((B, C, out_h, out_w, 2), dtype=np.intp)
-        self.max_indices[..., 0] = h_base + h_off
-        self.max_indices[..., 1] = w_base + w_off
+        max_indices_xp = xp.empty((B, C, out_h, out_w, 2), dtype=np.intp)
+        max_indices_xp[..., 0] = h_base + h_off
+        max_indices_xp[..., 1] = w_base + w_off
 
-        output = np.take_along_axis(flat, argmax[..., None], axis=-1)[..., 0]
+        output = xp.take_along_axis(flat, argmax[..., None], axis=-1)[..., 0]
+
+        # Keep NumPy state for backward compatibility
+        if self.use_gpu and isinstance(input, cp.ndarray):
+            self.input = cp.asnumpy(input).astype(np.float32, copy=False)
+        else:
+            self.input = np.asarray(input, dtype=np.float32)
+        self.max_indices = cp.asnumpy(max_indices_xp) if self.use_gpu else max_indices_xp.astype(np.intp)
         return output.astype(np.float32, copy=False)
 
     def backward(self, grad_output, learning_rate=None):
@@ -52,4 +67,4 @@ class MaxPool2D(Layer):
             grad_output,
         )
 
-        return grad_input
+        return grad_input.astype(np.float32, copy=False)
