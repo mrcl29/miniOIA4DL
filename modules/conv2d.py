@@ -69,10 +69,6 @@ class Conv2D(Layer):
 
         self.biases = np.zeros(out_channels, dtype=np.float32)
 
-        # Caché de pesos en GPU (se inicializan la primera vez que se usa use_gpu)
-        self._kernels_gpu = None
-        self._biases_gpu = None
-
         # PISTA: Y estos valores para qué las podemos utilizar?
         # Si los usas, no olvides utilizar el modelo explicado en teoría que maximiza la caché
         self.mc = 480
@@ -89,25 +85,19 @@ class Conv2D(Layer):
     def set_weights(self, weights):
         self.kernels = weights['kernels']
         self.biases = weights['biases']
-        # Invalidar caché GPU al cambiar pesos
-        self._kernels_gpu = None
-        self._biases_gpu = None
 
     def forward(self, input, training=True):
         xp = cp if self.use_gpu else np
-        if training:
-            # Solo guardamos la entrada para el backward
-            self.input = cp.asnumpy(input).astype(np.float32, copy=False) if (self.use_gpu and isinstance(input, cp.ndarray)) else np.asarray(input, dtype=np.float32)
-        x = xp.asarray(input, dtype=xp.float32)
+        self.input = xp.asarray(input, dtype=xp.float32)
 
         if self.mode == 'direct':
-            return self._forward_direct(x)
+            return self._forward_direct(self.input)
 
         if self.mode == 'im2col':
-            return self._forward_im2col(x)
+            return self._forward_im2col(self.input)
             
         if self.mode == 'im2col_cython':
-            return self._forward_im2col_cython(x)
+            return self._forward_im2col_cython(self.input)
         
         raise ValueError("Mode must be 'direct', 'im2col' or 'im2col_cython'")
 
@@ -174,21 +164,10 @@ class Conv2D(Layer):
 
         windows = _sliding_window_view_2d(input, self.kernel_size, self.stride, xp)
         cols = windows.transpose(0, 2, 3, 1, 4, 5).reshape(batch_size, out_h * out_w, -1)
-
-        if self.use_gpu:
-            # Subir pesos a GPU solo la primera vez (caché)
-            if self._kernels_gpu is None:
-                self._kernels_gpu = cp.asarray(self.kernels, dtype=cp.float32)
-            if self._biases_gpu is None:
-                self._biases_gpu = cp.asarray(self.biases, dtype=cp.float32)
-            kernels = self._kernels_gpu.reshape(self.out_channels, -1)
-            biases = self._biases_gpu
-        else:
-            kernels = np.asarray(self.kernels, dtype=np.float32).reshape(self.out_channels, -1)
-            biases = np.asarray(self.biases, dtype=np.float32)
+        kernels = xp.asarray(self.kernels, dtype=np.float32).reshape(self.out_channels, -1)
 
         output = cols @ kernels.T
-        output += biases.reshape(1, 1, self.out_channels)
+        output += xp.asarray(self.biases, dtype=np.float32).reshape(1, 1, self.out_channels)
 
         output = output.transpose(0, 2, 1).reshape(batch_size, self.out_channels, out_h, out_w)
         return output.astype(np.float32, copy=False)
