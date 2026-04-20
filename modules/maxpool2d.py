@@ -1,14 +1,37 @@
 from modules.layer import Layer
-#from cython_modules.maxpool2d import maxpool_forward_cython
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
+try:
+    from cython_modules.maxpool2d import maxpool_forward_cython
+    _CYTHON_AVAILABLE = True
+except ImportError:
+    _CYTHON_AVAILABLE = False
+
+
 class MaxPool2D(Layer):
-    def __init__(self, kernel_size, stride):
+    def __init__(self, kernel_size, stride, pool_algo=0):
         self.kernel_size = kernel_size
         self.stride = stride
 
+        if pool_algo == 0:
+            self.mode = 'numpy'
+        elif pool_algo == 1:
+            if _CYTHON_AVAILABLE:
+                self.mode = 'cython'
+            else:
+                print("Cython no disponible, usando maxpool NumPy como fallback")
+                self.mode = 'numpy'
+        else:
+            print(f"pool_algo {pool_algo} no soportado aún")
+            self.mode = 'numpy'
+
     def forward(self, input, training=True):  # input: np.ndarray of shape [B, C, H, W]
+        if self.mode == 'cython':
+            return self._forward_cython(input)
+        return self._forward_numpy(input)
+
+    def _forward_numpy(self, input):
         self.input = np.asarray(input, dtype=np.float32)
         B, C, H, W = self.input.shape
         KH, KW = self.kernel_size, self.kernel_size
@@ -36,6 +59,10 @@ class MaxPool2D(Layer):
 
         output = np.take_along_axis(flat, argmax[..., None], axis=-1)[..., 0]
         return output.astype(np.float32, copy=False)
+
+    def _forward_cython(self, input):
+        self.input = np.ascontiguousarray(input, dtype=np.float32)
+        return maxpool_forward_cython(self.input, self.kernel_size, self.stride)
 
     def backward(self, grad_output, learning_rate=None):
         grad_output = np.asarray(grad_output, dtype=np.float32)
