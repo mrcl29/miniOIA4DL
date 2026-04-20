@@ -27,6 +27,14 @@ class OIANET_CIFAR100(BaseModel):
             BatchNorm2D(128, use_gpu=use_gpu),
             ReLU(use_gpu=use_gpu),
             MaxPool2D(kernel_size=2, stride=2, pool_algo=pool_algo, use_gpu=use_gpu),
+
+            Flatten(use_gpu=use_gpu),
+            Dense(128 * 4 * 4, 256, use_gpu=use_gpu),
+            ReLU(use_gpu=use_gpu),
+            Dropout(0.5, use_gpu=use_gpu),
+
+            Dense(256, 100, use_gpu=use_gpu),
+            Softmax(use_gpu=use_gpu),
         ]
 
         super().__init__(layers)
