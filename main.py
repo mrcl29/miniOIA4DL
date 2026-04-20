@@ -32,7 +32,7 @@ def main(model_name, batch_size, epochs, learning_rate, conv_algo, pool_algo, pe
     if performance:
         print("Measuring performance...")
         perf(model, train_images, train_labels, batch_size=batch_size)
-    else: 
+    else:
         if eval_only == False:
             train(model, train_images, train_labels, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
               save_path=f'saved_models/{model_name}', resume=True, test_images=test_images, test_labels=test_labels, augmentor=augmentor)
@@ -50,8 +50,8 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', type=float, default=0.01, help='Learning rate for training (default: 0.01)')
     parser.add_argument('--performance', action='store_true', help='Enable performance measurement')
     parser.add_argument('--eval_only', action='store_true', help='Enable evaluation-only mode')
-    parser.add_argument('--conv_algo', type=int, default=0, choices=[0,1,2], help='Conv2d algorithm 0-direct, 1-im2col, 2-im2colfused (default: 0)')
-    parser.add_argument('--pool_algo', type=int, default=0, choices=[0,1], help='MaxPool2d algorithm 0-numpy, 1-cython (default: 0)')
+    parser.add_argument('--conv_algo', type=int, default=2, choices=[0,1,2], help='Conv2d algorithm 0-direct, 1-im2col, 2-im2colfused (default: 0)')
+    parser.add_argument('--pool_algo', type=int, default=1, choices=[0,1], help='MaxPool2d algorithm 0-numpy, 1-cython (default: 0)')
     parser.add_argument('--use_gpu', action='store_true', help='Enable GPU acceleration for supported layers')
     args = parser.parse_args()
 
