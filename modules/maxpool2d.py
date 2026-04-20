@@ -39,8 +39,6 @@ class MaxPool2D(Layer):
         return self._forward_numpy(input)
 
     def _forward_numpy(self, input):
-        self.input = np.asarray(input, dtype=np.float32)
-        B, C, H, W = self.input.shape
         xp = cp if self.use_gpu else np
         inp = xp.asarray(input, dtype=np.float32)
         B, C, H, W = inp.shape
