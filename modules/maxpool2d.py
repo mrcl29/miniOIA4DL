@@ -38,6 +38,7 @@ class MaxPool2D(Layer):
             return self._forward_cython(input)
         return self._forward_numpy(input)
 
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def _forward_numpy(self, input):
         xp = cp if self.use_gpu else np
         inp = xp.asarray(input, dtype=np.float32)
@@ -74,11 +75,15 @@ class MaxPool2D(Layer):
             self.input = np.asarray(input, dtype=np.float32)
         self.max_indices = cp.asnumpy(max_indices_xp) if self.use_gpu else max_indices_xp.astype(np.intp)
         return output.astype(np.float32, copy=False)
+    # --- FIN BLOQUE GENERADO CON IA ---
 
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def _forward_cython(self, input):
         self.input = np.ascontiguousarray(input, dtype=np.float32)
         return maxpool_forward_cython(self.input, self.kernel_size, self.stride)
+    # --- FIN BLOQUE GENERADO CON IA ---
 
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def backward(self, grad_output, learning_rate=None):
         grad_output = np.asarray(grad_output, dtype=np.float32)
         B, C, H, W = self.input.shape
@@ -95,3 +100,4 @@ class MaxPool2D(Layer):
         )
 
         return grad_input.astype(np.float32, copy=False)
+    # --- FIN BLOQUE GENERADO CON IA ---

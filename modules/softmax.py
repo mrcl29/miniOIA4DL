@@ -11,7 +11,8 @@ except ImportError:
 class Softmax(Layer):
     def __init__(self, use_gpu=False):
         self.use_gpu = bool(use_gpu and _CUPY_AVAILABLE)
-    
+
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def forward(self, input, training=True):  # input: [batch_size x num_classes]
         if self.use_gpu:
             input_gpu = cp.asarray(input, dtype=cp.float32)
@@ -25,6 +26,7 @@ class Softmax(Layer):
             exps = np.exp(shifted)
             self.output = exps / np.sum(exps, axis=1, keepdims=True)
             return self.output.astype(np.float32, copy=False)
+    # --- FIN BLOQUE GENERADO CON IA ---
 
     def backward(self, grad_output, learning_rate=None):
         # Assuming softmax used with cross-entropy loss, so gradient is simplified

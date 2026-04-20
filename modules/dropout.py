@@ -14,6 +14,7 @@ class Dropout(Layer):
         self.mask = None
         self.use_gpu = bool(use_gpu and _CUPY_AVAILABLE)
 
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def forward(self, x, training=True):
         xp = cp if self.use_gpu else np
         x = xp.asarray(x, dtype=np.float32)
@@ -23,10 +24,9 @@ class Dropout(Layer):
             return x * self.mask / (1.0 - self.p)
         else:
             return x
+    # --- FIN BLOQUE GENERADO CON IA ---
 
     def backward(self, grad_output, learning_rate=None):
         return grad_output * self.mask / (1.0 - self.p)
 #        else:
 #            return grad_output
-
-    

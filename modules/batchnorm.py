@@ -15,7 +15,7 @@ class BatchNorm2D(Layer):
         self.eps = eps
         self.use_gpu = bool(use_gpu and _CUPY_AVAILABLE)
 
-        
+
 
         self.gamma = np.ones((1, num_channels, 1, 1), dtype=np.float32)  # scale
         self.beta = np.zeros((1, num_channels, 1, 1), dtype=np.float32)  # shift
@@ -24,8 +24,8 @@ class BatchNorm2D(Layer):
         self.running_mean = np.zeros((1, num_channels, 1, 1), dtype=np.float32)
         self.running_var = np.ones((1, num_channels, 1, 1), dtype=np.float32)
 
-    
-    
+
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def forward(self, x, training=True):
         xp = cp if self.use_gpu else np
         inp = xp.asarray(x, dtype=np.float32)
@@ -57,19 +57,20 @@ class BatchNorm2D(Layer):
             out = gamma * norm + beta
 
         return out.astype(np.float32, copy=False)
+    # --- FIN BLOQUE GENERADO CON IA ---
 
     def backward(self, grad_output, learning_rate):
         B, C, H, W = grad_output.shape
         N = B * H * W
 
         std_inv = 1.0 / np.sqrt(self.var + self.eps)
-        
+
         # Gradients of parameters
         grad_norm = grad_output * self.gamma
         grad_var = np.sum(grad_norm * (self.input - self.mean) * -0.5 * std_inv**3, axis=(0, 2, 3), keepdims=True)
         grad_mean = np.sum(grad_norm * -std_inv, axis=(0, 2, 3), keepdims=True) + \
                     grad_var * np.mean(-2.0 * (self.input - self.mean), axis=(0, 2, 3), keepdims=True)
-        
+
         # Gradient of input
         grad_input = grad_norm * std_inv + grad_var * 2.0 * (self.input - self.mean) / N + grad_mean / N
 

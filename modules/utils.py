@@ -2,6 +2,8 @@ import numpy as np
 import cupy as cp
 
 # optimizar multiplicacion de matrices usando numpy (que está hecho en C)
+
+# --- INICIO BLOQUE GENERADO CON IA ---
 def matmul_biasses(A, B, C, bias, use_gpu = False):
     if use_gpu:
         A_gpu = cp.asarray(A, dtype=cp.float32)
@@ -20,3 +22,4 @@ def matmul_biasses(A, B, C, bias, use_gpu = False):
         if C is not None:
             C[...] = result
     return result
+# --- FIN BLOQUE GENERADO CON IA ---

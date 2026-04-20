@@ -30,6 +30,7 @@ class Dense(Layer):
 
         self.input = None
 
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def forward(self, input, training=True):  # input: [batch_size x in_features]
         if self.use_gpu and isinstance(input, cp.ndarray):
             self.input = cp.asnumpy(input).astype(np.float32, copy=False)
@@ -41,7 +42,9 @@ class Dense(Layer):
         biases = xp.asarray(self.biases, dtype=np.float32)
         output = x @ weights + biases
         return output.astype(np.float32, copy=False)
+    # --- FIN BLOQUE GENERADO CON IA ---
 
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def backward(self, grad_output, learning_rate):
         grad_output = np.asarray(grad_output, dtype=np.float32)
 
@@ -58,11 +61,11 @@ class Dense(Layer):
         self.biases -= learning_rate * grad_biases
 
         return grad_input.astype(np.float32, copy=False)
-    
+    # --- FIN BLOQUE GENERADO CON IA ---
+
     def get_weights(self):
         return {'weights': self.weights, 'biases': self.biases}
 
     def set_weights(self, weights):
         self.weights = weights['weights']
         self.biases = weights['biases']
-        

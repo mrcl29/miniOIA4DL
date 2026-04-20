@@ -15,8 +15,10 @@ class ReLU(Layer):
 
     def forward(self, x, training=True):
         if self.use_gpu:
+            # --- INICIO BLOQUE GENERADO CON IA ---
             self.input = cp.asarray(x, dtype=np.float32)
             return cp.maximum(0, self.input)
+            # --- FIN BLOQUE GENERADO CON IA ---
         else:
             self.input = np.asarray(x, dtype=np.float32)
             return np.maximum(0, self.input)

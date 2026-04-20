@@ -13,6 +13,7 @@ class Flatten(Layer):
         self.input_shape = None
         self.use_gpu = bool(use_gpu and _CUPY_AVAILABLE)
 
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def forward(self, input, training=True):  # input: np.ndarray of shape [B, C, H, W]
         if self.use_gpu:
             x = cp.asarray(input, dtype=np.float32)
@@ -21,6 +22,7 @@ class Flatten(Layer):
         else:
             self.input_shape = input.shape
             return input.reshape(input.shape[0], -1)
+    # --- FIN BLOQUE GENERADO CON IA ---
 
     def backward(self, grad_output, learning_rate=None):
         return grad_output.reshape(self.input_shape)

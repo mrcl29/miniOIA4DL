@@ -15,7 +15,7 @@ try:
 except ImportError:
     _CYTHON_AVAILABLE = False
 
-
+# --- INICIO BLOQUE GENERADO CON IA ---
 def _sliding_window_view_2d(input_tensor, kernel_size, stride, xp=np):
     windows = xp.lib.stride_tricks.sliding_window_view(
         input_tensor,
@@ -23,6 +23,7 @@ def _sliding_window_view_2d(input_tensor, kernel_size, stride, xp=np):
         axis=(2, 3)
     )
     return windows[:, :, ::stride, ::stride, :, :]
+# --- FIN BLOQUE GENERADO CON IA ---
 
 
 class Conv2D(Layer):
@@ -86,6 +87,7 @@ class Conv2D(Layer):
         self.kernels = weights['kernels']
         self.biases = weights['biases']
 
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def forward(self, input, training=True):
         xp = cp if self.use_gpu else np
         self.input = xp.asarray(input, dtype=xp.float32)
@@ -95,11 +97,12 @@ class Conv2D(Layer):
 
         if self.mode == 'im2col':
             return self._forward_im2col(self.input)
-            
+
         if self.mode == 'im2col_cython':
             return self._forward_im2col_cython(self.input)
-        
+
         raise ValueError("Mode must be 'direct', 'im2col' or 'im2col_cython'")
+    # --- FIN BLOQUE GENERADO CON IA ---
 
     def backward(self, grad_output, learning_rate):
         # ESTO NO ES NECESARIO YA QUE NO VAIS A HACER BACKPROPAGATION
@@ -147,6 +150,7 @@ class Conv2D(Layer):
 
     # --- IM2COL NUMPY IMPLEMENTATION (conv_algo=1) ---
 
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def _forward_im2col(self, input):
         xp = cp if self.use_gpu else np
         input = xp.asarray(input, dtype=np.float32)
@@ -171,9 +175,11 @@ class Conv2D(Layer):
 
         output = output.transpose(0, 2, 1).reshape(batch_size, self.out_channels, out_h, out_w)
         return output.astype(np.float32, copy=False)
+    # --- FIN BLOQUE GENERADO CON IA ---
 
     # --- IM2COL CYTHON IMPLEMENTATION (conv_algo=2) ---
 
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def _forward_im2col_cython(self, input):
         input = np.ascontiguousarray(input, dtype=np.float32)
         batch_size = input.shape[0]
@@ -198,6 +204,7 @@ class Conv2D(Layer):
         output += self.biases.reshape(1, 1, self.out_channels)
 
         return output.transpose(0, 2, 1).reshape(batch_size, self.out_channels, out_h, out_w)
+    # --- FIN BLOQUE GENERADO CON IA ---
 
     # --- BACKWARD (shared by all modes) ---
 
