@@ -23,7 +23,9 @@ class GlobalAvgPool2D(Layer):
         else:
             self.input_shape = x.shape
             return np.mean(x, axis=(2, 3), keepdims=False).astype(np.float32)
+    # --- FIN BLOQUE GENERADO CON IA ---
 
+    # --- INICIO BLOQUE GENERADO CON IA ---
     def backward(self, grad_output, learning_rate=None):
         batch_size, channels, h, w = self.input_shape
         grad = grad_output[:, :, None, None] / (h * w)  # shape: [batch, channels, 1, 1]
