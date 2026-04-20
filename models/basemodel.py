@@ -1,6 +1,14 @@
 import time
 import os
 import numpy as np
+
+try:
+    import cupy as cp
+    _CUPY_AVAILABLE = True
+except ImportError:
+    cp = None
+    _CUPY_AVAILABLE = False
+
 class BaseModel:
     def __init__(self, layers):
         self.layers = layers
@@ -14,7 +22,7 @@ class BaseModel:
             print("FW Layer;Batch;Time(s);Performance(imgs/s)")
         for layer in self.layers:
             layer_start_time = time.time()
-            x = layer.forward(x)
+            x = layer.forward(x, training=training)
             layer_time = time.time() - layer_start_time
             if curr_iter == 0:
                 # Calculate performance metrics
@@ -22,7 +30,9 @@ class BaseModel:
                 print(f"{layer.__class__.__name__};{imgs};{layer_time:.4f};{images_per_second:.2f}")
         if curr_iter == 0:
             print("==========================================")
-        
+
+        if _CUPY_AVAILABLE and isinstance(x, cp.ndarray):
+            x = cp.asnumpy(x).astype(np.float32, copy=False)
         return x
 
     def backward(self, grad_output, learning_rate,curr_iter=1):

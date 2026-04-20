@@ -1,11 +1,21 @@
 from modules.layer import Layer
 import numpy as np
 
+try:
+    import cupy as cp
+    _CUPY_AVAILABLE = True
+except ImportError:
+    cp = None
+    _CUPY_AVAILABLE = False
+
 class BatchNorm2D(Layer):
-    def __init__(self, num_channels, momentum=0.9, eps=1e-5):
+    def __init__(self, num_channels, momentum=0.9, eps=1e-5, use_gpu=False):
         self.num_channels = num_channels
         self.momentum = momentum
         self.eps = eps
+        self.use_gpu = bool(use_gpu and _CUPY_AVAILABLE)
+
+        
 
         self.gamma = np.ones((1, num_channels, 1, 1), dtype=np.float32)  # scale
         self.beta = np.zeros((1, num_channels, 1, 1), dtype=np.float32)  # shift
@@ -17,23 +27,36 @@ class BatchNorm2D(Layer):
     
     
     def forward(self, x, training=True):
-        self.input = x
+        xp = cp if self.use_gpu else np
+        inp = xp.asarray(x, dtype=np.float32)
+        gamma = xp.asarray(self.gamma, dtype=np.float32)
+        beta = xp.asarray(self.beta, dtype=np.float32)
 
         if training:
-            self.mean = x.mean(axis=(0, 2, 3), keepdims=True)
-            self.var = x.var(axis=(0, 2, 3), keepdims=True)
-            
-            self.norm = (x - self.mean) / np.sqrt(self.var + self.eps)
-            out = self.gamma * self.norm + self.beta
+            mean = inp.mean(axis=(0, 2, 3), keepdims=True)
+            var = inp.var(axis=(0, 2, 3), keepdims=True)
+            norm = (inp - mean) / ((var + self.eps) ** 0.5)
+            out = gamma * norm + beta
 
-            # Update running stats
-            self.running_mean = self.momentum * self.running_mean + (1 - self.momentum) * self.mean
-            self.running_var = self.momentum * self.running_var + (1 - self.momentum) * self.var
+            mean_np = cp.asnumpy(mean) if self.use_gpu else mean
+            var_np = cp.asnumpy(var) if self.use_gpu else var
+            self.running_mean = self.momentum * self.running_mean + (1 - self.momentum) * mean_np
+            self.running_var = self.momentum * self.running_var + (1 - self.momentum) * var_np
+            # store numpy copies for backward
+            if self.use_gpu and isinstance(x, cp.ndarray):
+                self.input = cp.asnumpy(x).astype(np.float32, copy=False)
+            else:
+                self.input = np.asarray(x, dtype=np.float32)
+            self.mean = mean_np
+            self.var = var_np
+            self.norm = cp.asnumpy(norm) if self.use_gpu else norm
         else:
-            norm = (x - self.running_mean) / np.sqrt(self.running_var + self.eps)
-            out = self.gamma * norm + self.beta
+            running_mean = xp.asarray(self.running_mean, dtype=np.float32)
+            running_var = xp.asarray(self.running_var, dtype=np.float32)
+            norm = (inp - running_mean) / ((running_var + self.eps) ** 0.5)
+            out = gamma * norm + beta
 
-        return out
+        return out.astype(np.float32, copy=False)
 
     def backward(self, grad_output, learning_rate):
         B, C, H, W = grad_output.shape

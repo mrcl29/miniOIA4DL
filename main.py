@@ -8,7 +8,7 @@ from eval import evaluate
 from performance import perf
 from data.cifar100_augmentator import CIFAR100Augmentor
 
-def main(model_name, batch_size, epochs, learning_rate, conv_algo, pool_algo, performance, eval_only):
+def main(model_name, batch_size, epochs, learning_rate, conv_algo, pool_algo, performance, eval_only, use_gpu):
     # !!Asegurarse de la ruta del dataset
     (train_images, train_labels), (test_images, test_labels) = load_cifar100(data_dir='./data/cifar-100-python')
 
@@ -24,7 +24,7 @@ def main(model_name, batch_size, epochs, learning_rate, conv_algo, pool_algo, pe
     elif model_name == 'TinyCNN':
         model = TinyCNN(conv_algo=conv_algo)
     elif model_name == 'OIANet':
-        model = OIANET_CIFAR100(conv_algo=conv_algo, pool_algo=pool_algo)
+        model = OIANET_CIFAR100(conv_algo=conv_algo, pool_algo=pool_algo, use_gpu=use_gpu)
     else:
         model = ResNet18_CIFAR100(conv_algo=conv_algo)
 
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     parser.add_argument('--eval_only', action='store_true', help='Enable evaluation-only mode')
     parser.add_argument('--conv_algo', type=int, default=0, choices=[0,1,2], help='Conv2d algorithm 0-direct, 1-im2col, 2-im2colfused (default: 0)')
     parser.add_argument('--pool_algo', type=int, default=0, choices=[0,1], help='MaxPool2d algorithm 0-numpy, 1-cython (default: 0)')
-
+    parser.add_argument('--use_gpu', action='store_true', help='Enable GPU acceleration for supported layers')
     args = parser.parse_args()
 
     model_name = args.model
@@ -63,5 +63,6 @@ if __name__ == '__main__':
     conv_algo = args.conv_algo # PISTA: esto sirve para seleccionar nuevos algoritmos de convolucion
     pool_algo = args.pool_algo # PISTA: idem para maxpool
     eval_only = False # FOR OIANET performance
+    use_gpu = args.use_gpu
 
-    main(model_name, batch_size, epochs, learning_rate, conv_algo, pool_algo, performance, eval_only)
+    main(model_name, batch_size, epochs, learning_rate, conv_algo, pool_algo, performance, eval_only, use_gpu=use_gpu)
